@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Doorbell - Voice Authentication</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            display: block;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+
+        .status.recording {
+            background: #fff3e0;
+            color: #e65100;
+            display: block;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .record-button {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .record-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+        }
+
+        .record-button:active {
+            transform: scale(0.95);
+        }
+
+        .record-button.recording {
+            background: linear-gradient(135deg, #f44336 0%, #e91e63 100%);
+            animation: recordPulse 1s infinite;
+        }
+
+        @keyframes recordPulse {
+            0%, 100% { box-shadow: 0 10px 30px rgba(244, 67, 54, 0.4); }
+            50% { box-shadow: 0 10px 50px rgba(244, 67, 54, 0.8); }
+        }
+
+        .record-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            animation: none;
+        }
+
+        .mic-icon {
+            font-size: 3em;
+        }
+
+        .timer {
+            font-size: 1.5em;
+            color: #666;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            min-height: 30px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-verify {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-verify:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .btn-clear {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #da190b;
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result.authorized {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+        }
+
+        .result.rejected {
+            background: #ffebee;
+            border: 2px solid #f44336;
+        }
+
+        .result-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .result.authorized .result-title {
+            color: #2e7d32;
+        }
+
+        .result.rejected .result-title {
+            color: #c62828;
+        }
+
+        .confidence {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        .loader.show {
+            display: block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Smart Doorbell</h1>
+        <p class="subtitle">Voice Authentication System</p>
+        
+        <div id="status" class="status info">
+            Press the microphone to start recording
+        </div>
+
+        <button id="recordBtn" class="record-button">
+            <div class="mic-icon">🎤</div>
+            <div>Press to Record</div>
+        </button>
+
+        <div id="timer" class="timer"></div>
+
+        <div class="controls">
+            <button id="verifyBtn" class="btn btn-verify" disabled>
+                Verify & Open Door
+            </button>
+            <button id="clearBtn" class="btn btn-clear" disabled>
+                Clear Recording
+            </button>
+        </div>
+
+        <div id="loader" class="loader"></div>
+
+        <div id="result" class="result">
+            <div class="result-title" id="resultTitle"></div>
+            <div id="resultMessage"></div>
+            <div class="confidence" id="confidence"></div>
+            <audio id="responseAudio" controls></audio>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://cuddly-computing-machine-7vpxrrxvjp4g3pgww-8000.app.github.dev';
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordedBlob = null;
+        let isRecording = false;
+        let recordingStartTime;
+        let timerInterval;
+
+        const recordBtn = document.getElementById('recordBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const status = document.getElementById('status');
+        const timer = document.getElementById('timer');
+        const result = document.getElementById('result');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultMessage = document.getElementById('resultMessage');
+        const confidence = document.getElementById('confidence');
+        const responseAudio = document.getElementById('responseAudio');
+        const loader = document.getElementById('loader');
+
+        // Initialize
+        async function init() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    verifyBtn.disabled = false;
+                    clearBtn.disabled = false;
+                    updateStatus('Recording complete! Click "Verify & Open Door" to authenticate', 'success');
+                };
+
+                updateStatus('Ready! Press the microphone to record', 'info');
+            } catch (error) {
+                updateStatus('Error: Could not access microphone. Please allow microphone access.', 'error');
+                console.error('Microphone access error:', error);
+            }
+        }
+
+        // Record button handler
+        recordBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            audioChunks = [];
+            recordedBlob = null;
+            result.classList.remove('show');
+            
+            mediaRecorder.start();
+            isRecording = true;
+            recordingStartTime = Date.now();
+            
+            recordBtn.classList.add('recording');
+            recordBtn.innerHTML = '<div class="mic-icon">⏹️</div><div>Stop Recording</div>';
+            updateStatus('🔴 Recording... Speak now!', 'recording');
+            
+            startTimer();
+            verifyBtn.disabled = true;
+            clearBtn.disabled = true;
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            isRecording = false;
+            
+            recordBtn.classList.remove('recording');
+            recordBtn.innerHTML = '<div class="mic-icon">🎤</div><div>Press to Record</div>';
+            
+            stopTimer();
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                timer.textContent = `${minutes}:${seconds}`;
+            }, 100);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timer.textContent = '';
+        }
+
+        // Verify button handler
+        verifyBtn.addEventListener('click', async () => {
+            if (!recordedBlob) {
+                updateStatus('No recording found. Please record your voice first.', 'error');
+                return;
+            }
+
+            verifyBtn.disabled = true;
+            clearBtn.disabled = true;
+            recordBtn.disabled = true;
+            loader.classList.add('show');
+            result.classList.remove('show');
+            updateStatus('🔍 Verifying your voice... Please wait', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('audio', recordedBlob, 'recording.webm');
+
+                const response = await fetch(`${API_URL}/open`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                const verificationStatus = response.headers.get('X-Verification-Status');
+                const confidenceScore = response.headers.get('X-Confidence-Score');
+                const message = response.headers.get('X-Message');
+
+                console.log('Response status:', response.status);
+                console.log('Verification Status:', verificationStatus);
+                console.log('Confidence Score:', confidenceScore);
+                console.log('Message:', message);
+
+                // Display result
+                result.classList.add('show');
+                responseAudio.src = audioUrl;
+                
+                // If status is 200 and we got audio, check verification status
+                // If headers are missing, infer from response status
+                const isAuthorized = verificationStatus === 'authorized' || 
+                                   (response.ok && !verificationStatus); // Fallback if headers missing
+                
+                if (isAuthorized) {
+                    result.classList.remove('rejected');
+                    result.classList.add('authorized');
+                    // resultTitle.textContent = '✅ Access Granted!';
+                    // resultMessage.textContent = 'Welcome! The door is opening...';
+                    // updateStatus('✅ Authentication successful!', 'success');
+                    responseAudio.play();
+                } else {
+                    result.classList.remove('authorized');
+                    result.classList.add('rejected');
+                    // resultTitle.textContent = '❌ Access Denied';
+                    // resultMessage.textContent = 'Voice not recognized. Please try again.';
+                    // updateStatus('❌ Authentication failed', 'error');
+                    responseAudio.play();
+                }
+
+                // Display confidence score if available
+                if (confidenceScore && !isNaN(parseFloat(confidenceScore))) {
+                    confidence.textContent = `Confidence Score: ${(parseFloat(confidenceScore) * 100).toFixed(1)}%`;
+                } else {
+                    // confidence.textContent = message || 'Verification complete';
+                }
+
+            } catch (error) {
+                updateStatus('Error: Could not connect to server. Make sure the backend is running.', 'error');
+                console.error('Verification error:', error);
+            } finally {
+                loader.classList.remove('show');
+                verifyBtn.disabled = false;
+                clearBtn.disabled = false;
+                recordBtn.disabled = false;
+            }
+        });
+
+        // Clear button handler
+        clearBtn.addEventListener('click', () => {
+            recordedBlob = null;
+            audioChunks = [];
+            result.classList.remove('show');
+            timer.textContent = '';
+            verifyBtn.disabled = true;
+            clearBtn.disabled = true;
+            updateStatus('Recording cleared. Press the microphone to record again.', 'info');
+        });
+
+        function updateStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>
