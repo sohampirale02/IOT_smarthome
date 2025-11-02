@@ -11,7 +11,6 @@ from pathlib import Path
 from pydub import AudioSegment
 import subprocess
 
-# Set ffmpeg path for pydub (if needed)
 try:
     result = subprocess.run(['which', 'ffmpeg'], capture_output=True, text=True)
     if result.returncode == 0:
@@ -23,19 +22,16 @@ except Exception as e:
 
 app = FastAPI(title="Smart Doorbell API")
 
-# Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize SpeakerRecognition model
 verification = SpeakerRecognition.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb")
 
-# Paths
 AUDIO_DIR = Path("/workspaces/IOT_smarthome/audio/")
 REGISTERED_FILES = [
     AUDIO_DIR / "soham.mp3"
@@ -43,12 +39,10 @@ REGISTERED_FILES = [
 WELCOME_AUDIO = AUDIO_DIR / "welcome.mp3"
 REJECT_AUDIO = AUDIO_DIR / "reject.mp3"
 
-# Pre-compute registered embeddings
 registered_embeddings = []
 
 def load_and_resample(file_path):
     """Load audio file and resample to 16kHz if needed"""
-    # Convert WebM to WAV if necessary
     file_ext = Path(file_path).suffix.lower()
     actual_file_path = file_path
     
@@ -133,12 +127,10 @@ async def verify_and_respond(audio: UploadFile = File(...)):
         FileResponse: welcome.mp3 if authorized, reject.mp3 if not
     """
     
-    # Validate file
     if not audio.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     
-    # Determine file extension from content type or filename
-    file_ext = ".webm"  # Default for browser recordings
+    file_ext = ".webm"  
     if audio.content_type:
         if "webm" in audio.content_type:
             file_ext = ".webm"
@@ -147,7 +139,6 @@ async def verify_and_respond(audio: UploadFile = File(...)):
         elif "wav" in audio.content_type:
             file_ext = ".wav"
     
-    # Save uploaded file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
         content = await audio.read()
         tmp_file.write(content)
@@ -159,10 +150,8 @@ async def verify_and_respond(audio: UploadFile = File(...)):
     print(f"📁 File size: {os.path.getsize(tmp_path)} bytes")
     
     try:
-        # Verify speaker
         is_authorized, confidence = verify_speaker(tmp_path, threshold=0.4)
         
-        # Choose response audio
         if is_authorized:
             response_audio = WELCOME_AUDIO
             status = "authorized"
@@ -174,7 +163,6 @@ async def verify_and_respond(audio: UploadFile = File(...)):
         
         print(f"✅ {message}" if is_authorized else f"❌ {message}")
         
-        # Return appropriate audio file
         if not response_audio.exists():
             raise HTTPException(status_code=500, detail=f"Response audio not found: {response_audio}")
         
@@ -193,11 +181,9 @@ async def verify_and_respond(audio: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
     
     finally:
-        # Clean up temporary files
         try:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
-            # Also remove converted WAV if it exists
             wav_path = str(Path(tmp_path).with_suffix('.wav'))
             if os.path.exists(wav_path) and wav_path != tmp_path:
                 os.remove(wav_path)
@@ -216,14 +202,12 @@ async def register_speaker(audio: UploadFile = File(...), name: str = "new_speak
     if not audio.filename:
         raise HTTPException(status_code=400, detail="No file provided")
     
-    # Save to registered directory
     file_path = AUDIO_DIR / f"{name}.mp3"
     
     with open(file_path, "wb") as f:
         content = await audio.read()
         f.write(content)
     
-    # Recompute embeddings
     compute_embeddings()
     
     return {
